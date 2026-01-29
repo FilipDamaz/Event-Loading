@@ -1,0 +1,55 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: "postgresql://app:app@db:5432/app?serverVersion=16&charset=utf8"
+      RABBITMQ_DSN: "amqp://app:app@rabbitmq:5672/%2f"
+    depends_on:
+      - db
+      - rabbitmq
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5432:5432"
+    volumes:
+      - .:/app
+      - pgdata:/var/lib/postgresql/data
+
+  db_test:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: app_test
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata_test:/var/lib/postgresql/data
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    environment:
+      RABBITMQ_DEFAULT_USER: app
+      RABBITMQ_DEFAULT_PASS: app
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+      - "5552:5552"
+    volumes:
+      - ./docker/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins
+
+volumes:
+  pgdata:
+  pgdata_test:

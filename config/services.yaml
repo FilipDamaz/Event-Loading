@@ -1,0 +1,102 @@
+# yaml-language-server: $schema=../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+
+# This file is the entry point to configure your own services.
+# Files in the packages/ subdirectory configure your dependencies.
+# See also https://symfony.com/doc/current/service_container/import.html
+
+# Put parameters here that don't need to change on each machine where the app is deployed
+# https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
+parameters:
+    event_loader.batch_size: 1000
+    event_loader.min_interval_ms: 200
+    event_loader.lease_ttl_ms: 2000
+    event_loader.idle_sleep_ms: 10
+    inbox_worker.batch_size: 1000
+    inbox_worker.idle_sleep_ms: 50
+    request_log.retention_succeeded_days: 7
+    request_log.retention_failed_days: 30
+
+services:
+    # default configuration for services in *this* file
+    _defaults:
+        autowire: true      # Automatically injects dependencies in your services.
+        autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
+
+    _instanceof:
+        App\EventLoading\Contracts\EventSourceInterface:
+            tags: ['app.event_source']
+
+    # makes classes in src/ available to be used as services
+    # this creates a service per class whose id is the fully-qualified class name
+    App\:
+        resource: '../src/'
+
+    App\EventLoading\EventLoader:
+        arguments:
+            $batchSize: '%event_loader.batch_size%'
+            $minIntervalMs: '%event_loader.min_interval_ms%'
+            $leaseTtlMs: '%event_loader.lease_ttl_ms%'
+            $idleSleepMs: '%event_loader.idle_sleep_ms%'
+
+    App\EventLoading\InboxRetryWorker:
+        arguments:
+            $batchSize: '%inbox_worker.batch_size%'
+            $idleSleepMs: '%inbox_worker.idle_sleep_ms%'
+
+    App\EventLoading\Infrastructure\DefaultSourceRegistry:
+        arguments:
+            $sources: !tagged_iterator app.event_source
+
+    App\EventLoading\Infrastructure\Pdo\PdoConnectionFactory: ~
+
+    pdo.connection:
+        class: PDO
+        factory: ['@App\EventLoading\Infrastructure\Pdo\PdoConnectionFactory', 'create']
+        arguments:
+            - '%env(DATABASE_URL)%'
+        public: true
+
+    PDO:
+        alias: 'pdo.connection'
+
+    App\EventLoading\Infrastructure\Pdo\PdoEventInbox:
+        arguments:
+            $pdo: '@pdo.connection'
+
+    App\EventLoading\Infrastructure\Pdo\PdoEventStorage:
+        arguments:
+            $pdo: '@pdo.connection'
+
+    App\EventLoading\Infrastructure\Pdo\PdoSourceCursorStore:
+        arguments:
+            $pdo: '@pdo.connection'
+
+    App\EventLoading\Infrastructure\Pdo\PdoSourceRateLimiter:
+        arguments:
+            $pdo: '@pdo.connection'
+
+    App\EventLoading\Infrastructure\Pdo\PdoSourceLeaseManager:
+        arguments:
+            $pdo: '@pdo.connection'
+
+    App\EventLoading\Infrastructure\Pdo\PdoSourceRequestLog:
+        arguments:
+            $pdo: '@pdo.connection'
+
+    App\EventLoading\Infrastructure\RabbitMq\PhpAmqplibStreamClient:
+        arguments:
+            $dsn: '%env(RABBITMQ_DSN)%'
+
+    App\EventLoading\Infrastructure\RabbitMq\StreamClientInterface: '@App\EventLoading\Infrastructure\RabbitMq\PhpAmqplibStreamClient'
+
+    App\EventLoading\Contracts\SourceRegistryInterface: '@App\EventLoading\Infrastructure\DefaultSourceRegistry'
+    App\EventLoading\Contracts\SourceLeaseManagerInterface: '@App\EventLoading\Infrastructure\Pdo\PdoSourceLeaseManager'
+    App\EventLoading\Contracts\SourceRateLimiterInterface: '@App\EventLoading\Infrastructure\Pdo\PdoSourceRateLimiter'
+    App\EventLoading\Contracts\SourceCursorStoreInterface: '@App\EventLoading\Infrastructure\Pdo\PdoSourceCursorStore'
+    App\EventLoading\Contracts\SourceRequestLogInterface: '@App\EventLoading\Infrastructure\Pdo\PdoSourceRequestLog'
+    App\EventLoading\Contracts\EventInboxInterface: '@App\EventLoading\Infrastructure\Pdo\PdoEventInbox'
+    App\EventLoading\Contracts\EventStorageInterface: '@App\EventLoading\Infrastructure\Pdo\PdoEventStorage'
+    App\EventLoading\Contracts\LoggerInterface: '@App\EventLoading\Infrastructure\StdoutLogger'
+
+    # add more service definitions when explicit configuration is needed
+    # please note that last definitions always *replace* previous ones

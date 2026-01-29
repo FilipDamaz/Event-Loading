@@ -1,0 +1,49 @@
+services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+
+  App\EventLoading\EventLoader:
+    public: true
+
+  pdo.connection:
+    class: PDO
+    factory: ['@App\EventLoading\Infrastructure\Pdo\PdoConnectionFactory', 'create']
+    arguments:
+      - '%env(DATABASE_URL)%'
+    public: true
+
+  PDO:
+    alias: 'pdo.connection'
+
+  App\Tests\Functional\Support\StopController: ~
+  App\Tests\Functional\Support\TestEventSource: ~
+  App\Tests\Functional\Support\TestSourceRegistry:
+    arguments:
+      - '@App\Tests\Functional\Support\TestEventSource'
+  App\Tests\Functional\Support\TestInboxRetryWorker: ~
+  App\Tests\Functional\Support\InMemoryStreamClient: ~
+
+  App\Tests\Support\AllowAllLeaseManager: ~
+  App\Tests\Support\AllowAllRateLimiter: ~
+  App\Tests\Support\InMemoryCursorStore: ~
+  App\Tests\Support\InMemoryInbox: ~
+  App\Tests\Support\InMemoryStorage: ~
+  App\Tests\Support\InMemoryRequestLog: ~
+  App\Tests\Support\NullLogger: ~
+
+  App\EventLoading\Contracts\SourceRegistryInterface: '@App\Tests\Functional\Support\TestSourceRegistry'
+  App\EventLoading\Contracts\SourceLeaseManagerInterface: '@App\Tests\Support\AllowAllLeaseManager'
+  App\EventLoading\Contracts\SourceRateLimiterInterface: '@App\Tests\Support\AllowAllRateLimiter'
+  App\EventLoading\Contracts\SourceCursorStoreInterface: '@App\Tests\Support\InMemoryCursorStore'
+  App\EventLoading\Contracts\SourceRequestLogInterface: '@App\Tests\Support\InMemoryRequestLog'
+  App\EventLoading\Contracts\EventInboxInterface: '@App\Tests\Support\InMemoryInbox'
+  App\EventLoading\Contracts\EventStorageInterface: '@App\Tests\Support\InMemoryStorage'
+  App\EventLoading\Contracts\LoggerInterface: '@App\Tests\Support\NullLogger'
+  App\EventLoading\InboxRetryWorker: '@App\Tests\Functional\Support\TestInboxRetryWorker'
+  App\EventLoading\Infrastructure\RabbitMq\RabbitMqStreamEventSource:
+    public: true
+    arguments:
+      $streamClient: '@App\Tests\Functional\Support\InMemoryStreamClient'
+      $streamName: 'test-stream'
+      $sourceName: 'rabbitmq-stream'
